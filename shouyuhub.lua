@@ -7,6 +7,8 @@ print("[ShouyuHub] 起動開始...")
 print("========================================")
 
 local BASE = "https://raw.githubusercontent.com/shouyu356-alt/shouyu.script/main/"
+                                                                    ↑↑↑↑↑↑↑↑↑↑↑↑
+                                                            ここが間違ってる
 
 -- サービス取得
 local TS = game:GetService("TweenService")
