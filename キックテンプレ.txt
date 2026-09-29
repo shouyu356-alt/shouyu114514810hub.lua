@@ -1,0 +1,9 @@
+-- Blobmanをスポーン
+BlobmanBeta.spawnBlobman()
+
+-- Blobmanに乗る
+BlobmanBeta.ensureSitBlobman()
+
+-- Blobmanで掴む/離す
+BlobmanBeta.blobGrab(blob, target, "Left")  -- 左側で掴む
+BlobmanBeta.blobDrop(blob, target, "Left")  -- 離す

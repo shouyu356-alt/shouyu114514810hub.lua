@@ -1,0 +1,456 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+
+-- Orion Library ロード
+local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/jadpy/suki/refs/heads/main/orion"))()
+
+-- ウィンドウ作成
+local Window = OrionLib:MakeWindow({
+    Name = "バリア破壊ツール", -- UI自体の名前
+    HidePremium = false,
+    SaveConfig = true,
+    ConfigFolder = "YuraCustomConfig"
+})
+
+--- タブ設定 ---
+local Tab = Window:MakeTab({
+    Name = "バリア破壊", -- タブの名前
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+-- 変数定義
+local autoBarrierRunning = false
+local autoBarrierToggle = nil
+local autoBarrierNoTPRunning = false
+local autoBarrierNoTPToggle = nil
+
+-- バリア破壊関数（通常版）
+local function executeBarrierBreak()
+    local player, playerName = LP, LP.Name
+    
+    -- 家の中にいないかチェック
+    local plotItems = Workspace:FindFirstChild("PlotItems")
+    if plotItems then
+        local playersInPlots = plotItems:FindFirstChild("PlayersInPlots")
+        if playersInPlots and playersInPlots:FindFirstChild(playerName) then
+            OrionLib:MakeNotification({
+                Name = "⚠️ Error",
+                Content = "Please execute outside your house",
+                Image = "rbxassetid://4483345998",
+                Time = 3
+            })
+            return false
+        end
+    end
+
+    autoBarrierRunning = true
+    local success, result = pcall(function()
+        -- キャラクターチェック
+        if not LP.Character or not LP.Character:FindFirstChild("HumanoidRootPart") then
+            OrionLib:MakeNotification({
+                Name = "⚠️ Error",
+                Content = "Character not found",
+                Image = "rbxassetid://4483345998",
+                Time = 3
+            })
+            return false
+        end
+
+        local humanoid = LP.Character:FindFirstChildOfClass("Humanoid")
+        if not humanoid then
+            OrionLib:MakeNotification({
+                Name = "⚠️ Error",
+                Content = "Humanoid not found",
+                Image = "rbxassetid://4483345998",
+                Time = 3
+            })
+            return false
+        end
+
+        local originalWalkSpeed = humanoid.WalkSpeed
+        local originalPosition = LP.Character.HumanoidRootPart.CFrame
+        humanoid.WalkSpeed = 0
+
+        -- MenuToysチェック
+        if not ReplicatedStorage:FindFirstChild("MenuToys") then
+            humanoid.WalkSpeed = originalWalkSpeed
+            OrionLib:MakeNotification({
+                Name = "⚠️ Error",
+                Content = "MenuToys not found",
+                Image = "rbxassetid://4483345998",
+                Time = 3
+            })
+            return false
+        end
+
+        -- オカリナをスポーン
+        ReplicatedStorage.MenuToys.SpawnToyRemoteFunction:InvokeServer("InstrumentWoodwindOcarina", 
+            CFrame.new(184.148834, -5.54824972, 498.136749, 0.829037189, -0.214714944, 0.516328275, 0, 0.923344612, 0.383972496, -0.559193552, -0.318327487, 0.765486956), 
+            Vector3.new(0, 34, 0))
+        wait(0.4)
+
+        -- オカリナを取得
+        local toyFolder = Workspace:FindFirstChild(LP.Name .. "SpawnedInToys")
+        if not toyFolder or not toyFolder:FindFirstChild("InstrumentWoodwindOcarina") then
+            humanoid.WalkSpeed = originalWalkSpeed
+            OrionLib:MakeNotification({
+                Name = "⚠️ Error",
+                Content = "Ocarina not found",
+                Image = "rbxassetid://4483345998",
+                Time = 3
+            })
+            return false
+        end
+
+        local ocarina = toyFolder:FindFirstChild("InstrumentWoodwindOcarina")
+        if not ocarina or not ocarina:FindFirstChild("HoldPart") then
+            humanoid.WalkSpeed = originalWalkSpeed
+            OrionLib:MakeNotification({
+                Name = "⚠️ Error",
+                Content = "Ocarina HoldPart not found",
+                Image = "rbxassetid://4483345998",
+                Time = 3
+            })
+            return false
+        end
+
+        -- オカリナを装備
+        ocarina.HoldPart.HoldItemRemoteFunction:InvokeServer(ocarina, Workspace[LP.Name])
+
+        -- 特定の位置にテレポート
+        if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+            LP.Character.HumanoidRootPart.CFrame = CFrame.new(304.06, 25.77, 488.54)
+        end
+
+        wait(0.21)
+
+        -- オカリナを破棄
+        if toyFolder and toyFolder:FindFirstChild("InstrumentWoodwindOcarina") then
+            ReplicatedStorage.MenuToys.DestroyToy:FireServer(toyFolder.InstrumentWoodwindOcarina)
+        end
+
+        -- 元の位置に戻る
+        if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+            LP.Character.HumanoidRootPart.CFrame = originalPosition
+        end
+
+        wait(0.7)
+
+        -- キャンプファイヤーをスポーン（バリア破壊用）
+        ReplicatedStorage.MenuToys.SpawnToyRemoteFunction:InvokeServer("Campfire", 
+            CFrame.new(257.638672, -5.57392979, 450.103638, -0.950906992, -0.171067372, 0.257899135, 0, 0.833338678, 0.552762806, -0.309477001, 0.525626004, -0.79242748), 
+            Vector3.new(0, 161.9720001220703, 0))
+
+        wait(0.7)
+
+        -- キャンプファイヤーの位置を確認
+        local campfirePosition = Vector3.new(257.638672, -5.57392979, 450.103638)
+        local toyFolder2 = Workspace:FindFirstChild(LP.Name .. "SpawnedInToys")
+        if toyFolder2 and toyFolder2:FindFirstChild("Campfire") then
+            local campfire = toyFolder2:FindFirstChild("Campfire")
+            local primaryPart = campfire.PrimaryPart or campfire:FindFirstChildWhichIsA("BasePart")
+            if primaryPart then
+                local distance = (primaryPart.Position - campfirePosition).Magnitude
+                if distance < 10 then
+                    wait(1)
+                    humanoid.WalkSpeed = originalWalkSpeed
+                    OrionLib:MakeNotification({
+                        Name = "✅ Success",
+                        Content = "Barrier破壊に成功！",
+                        Image = "rbxassetid://4483345998",
+                        Time = 5
+                    })
+                    return true
+                end
+            end
+        end
+
+        humanoid.WalkSpeed = originalWalkSpeed
+        OrionLib:MakeNotification({
+            Name = "⚠️ Failed",
+            Content = "Campfire placement failed",
+            Image = "rbxassetid://4483345998",
+            Time = 3
+        })
+        return false
+    end)
+
+    if not success then
+        if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+            local humanoid = LP.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid then humanoid.WalkSpeed = 16 end
+        end
+        OrionLib:MakeNotification({
+            Name = "❌ Error",
+            Content = "Execution error: " .. tostring(result),
+            Image = "rbxassetid://4483345998",
+            Time = 3
+        })
+        return false
+    end
+
+    autoBarrierRunning = false
+    return result
+end
+
+-- バリア破壊関数（NoTP版 - テレポートなし）
+local function executeBarrierBreakNoTP()
+    local player, playerName = LP, LP.Name
+    
+    -- 家の中にいないかチェック
+    local plotItems = Workspace:FindFirstChild("PlotItems")
+    if plotItems then
+        local playersInPlots = plotItems:FindFirstChild("PlayersInPlots")
+        if playersInPlots and playersInPlots:FindFirstChild(playerName) then
+            OrionLib:MakeNotification({
+                Name = "⚠️ エラー",
+                Content = "家の外で実行してください",
+                Image = "rbxassetid://4483345998",
+                Time = 3
+            })
+            return false
+        end
+    end
+
+    autoBarrierNoTPRunning = true
+    local success, err = pcall(function()
+        -- キャラクターチェック
+        if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then 
+            error("キャラクターが見つかりません") 
+        end
+        
+        local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+        if not humanoid then 
+            error("Humanoidが見つかりません") 
+        end
+        
+        humanoid.WalkSpeed = 0
+        
+        if not ReplicatedStorage:FindFirstChild("MenuToys") then 
+            humanoid.WalkSpeed = 16 
+            error("MenuToysが見つかりません") 
+        end
+        
+        -- オカリナをスポーン
+        local spawnResult = ReplicatedStorage.MenuToys.SpawnToyRemoteFunction:InvokeServer("InstrumentWoodwindOcarina", 
+            CFrame.new(184.148834, -5.54824972, 498.136749, 0.829037189, -0.214714944, 0.516328275, 0, 0.923344612, 0.383972496, -0.559193552, -0.318327487, 0.765486956), 
+            Vector3.new(0, 34, 0))
+        
+        if not spawnResult then 
+            humanoid.WalkSpeed = 16 
+            error("オカリナのスポーンに失敗しました") 
+        end
+        wait(0.4)
+        
+        -- オカリナを取得
+        local toyFolder = Workspace:FindFirstChild(playerName .. "SpawnedInToys")
+        if not toyFolder then 
+            humanoid.WalkSpeed = 16 
+            error("トイフォルダが見つかりません") 
+        end
+        
+        local ocarina = toyFolder:FindFirstChild("InstrumentWoodwindOcarina")
+        if not ocarina then 
+            humanoid.WalkSpeed = 16 
+            error("オカリナが見つかりません") 
+        end
+        
+        if not ocarina:FindFirstChild("HoldPart") then 
+            humanoid.WalkSpeed = 16 
+            error("オカリナのHoldPartが見つかりません") 
+        end
+        
+        -- オカリナを装備
+        local holdResult = Workspace[playerName .. "SpawnedInToys"].InstrumentWoodwindOcarina.HoldPart.HoldItemRemoteFunction:InvokeServer(
+            Workspace[playerName .. "SpawnedInToys"].InstrumentWoodwindOcarina, 
+            Workspace[playerName])
+        
+        if not holdResult then 
+            humanoid.WalkSpeed = 16 
+            error("オカリナを持つことに失敗しました") 
+        end
+        wait(0.2)
+        
+        -- オカリナを落とす（テレポートなしで指定位置にドロップ）
+        local dropResult = Workspace[playerName .. "SpawnedInToys"].InstrumentWoodwindOcarina.HoldPart.DropItemRemoteFunction:InvokeServer(
+            Workspace[playerName .. "SpawnedInToys"].InstrumentWoodwindOcarina, 
+            CFrame.new(304.06, 25.77, 488.54), 
+            Vector3.new(0, 70.48600006103516, 0))
+        
+        if not dropResult then 
+            humanoid.WalkSpeed = 16 
+            error("オカリナを落とすことに失敗しました") 
+        end
+        wait(0.1)
+        
+        -- オカリナを破棄
+        if not Workspace:FindFirstChild(playerName .. "SpawnedInToys") then 
+            humanoid.WalkSpeed = 16 
+            error("トイフォルダが消失しました") 
+        end
+        if not Workspace[playerName .. "SpawnedInToys"]:FindFirstChild("InstrumentWoodwindOcarina") then 
+            humanoid.WalkSpeed = 16 
+            error("オカリナが既に消失しています") 
+        end
+        
+        ReplicatedStorage.MenuToys.DestroyToy:FireServer(Workspace[playerName .. "SpawnedInToys"].InstrumentWoodwindOcarina)
+        wait(1.5)
+        
+        -- キャンプファイヤーをスポーン（バリア破壊用）
+        local campfireSpawnResult = ReplicatedStorage.MenuToys.SpawnToyRemoteFunction:InvokeServer("Campfire", 
+            CFrame.new(257.638672, -5.57392979, 450.103638, -0.950906992, -0.171067372, 0.257899135, 0, 0.833338678, 0.552762806, -0.309477001, 0.525626004, -0.79242748), 
+            Vector3.new(0, 161.9720001220703, 0))
+        
+        if not campfireSpawnResult then 
+            humanoid.WalkSpeed = 16 
+            error("Campfireのスポーンに失敗しました") 
+        end
+        wait(1)
+        
+        if not Workspace:FindFirstChild(playerName .. "SpawnedInToys") then 
+            humanoid.WalkSpeed = 16 
+            error("トイフォルダが消失しました") 
+        end
+        if not Workspace[playerName .. "SpawnedInToys"]:FindFirstChild("Campfire") then 
+            humanoid.WalkSpeed = 16 
+            error("Campfireが見つかりません") 
+        end
+        
+        humanoid.WalkSpeed = 16
+        OrionLib:MakeNotification({
+            Name = "✅ 成功",
+            Content = "Barrier破壊に成功しました！",
+            Image = "rbxassetid://4483345998",
+            Time = 3
+        })
+        return true
+    end)
+
+    if not success then
+        local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then humanoid.WalkSpeed = 16 end
+        OrionLib:MakeNotification({
+            Name = "❌ 失敗",
+            Content = tostring(err),
+            Image = "rbxassetid://4483345998",
+            Time = 3
+        })
+        return false
+    end
+
+    autoBarrierNoTPRunning = false
+    return true
+end
+
+-- ボタンの追加（通常版 - 1回実行）
+Tab:AddButton({
+    Name = "Break Barrier (1回実行)",
+    Callback = function()
+        executeBarrierBreak()
+    end    
+})
+
+-- セクション区切り
+Tab:AddSection({
+    Name = "自動実行機能"
+})
+
+-- 自動実行トグルの追加（成功したら自動OFF）
+autoBarrierToggle = Tab:AddToggle({
+    Name = "🔄 Auto Barrier破壊",
+    Default = false,
+    Callback = function(Value)
+        autoBarrierRunning = Value
+        if Value then
+            OrionLib:MakeNotification({
+                Name = "▶️ Start",
+                Content = "Auto executing until success",
+                Image = "rbxassetid://4483345998",
+                Time = 2
+            })
+            spawn(function()
+                while autoBarrierRunning do
+                    local result = executeBarrierBreak()
+                    if result then
+                        -- 成功したら自動でトグルをOFFにする
+                        if autoBarrierToggle then
+                            autoBarrierToggle:Set(false)
+                        end
+                        break
+                    end
+                    wait(1)
+                end
+            end)
+        else
+            OrionLib:MakeNotification({
+                Name = "⏸️ Stop",
+                Content = "Auto execution stopped",
+                Image = "rbxassetid://4483345998",
+                Time = 2
+            })
+        end
+    end
+})
+
+-- 説明文追加
+Tab:AddParagraph("使い方", "・家の外で実行してください\n・自動実行は成功したら自動でOFFになります")
+
+-- セクション区切り（NoTP版）
+Tab:AddSection({
+    Name = "テレポートなし版 (Beta)"
+})
+
+-- NoTP版ボタン
+Tab:AddButton({
+    Name = "Break Barrier NoTP (1回実行)",
+    Callback = function()
+        executeBarrierBreakNoTP()
+    end    
+})
+
+-- NoTP版自動実行トグル（成功したら自動OFF）
+autoBarrierNoTPToggle = Tab:AddToggle({
+    Name = "🔄 Auto Barrier破壊 NoTP (Beta)",
+    Default = false,
+    Callback = function(Value)
+        autoBarrierNoTPRunning = Value
+        if Value then
+            OrionLib:MakeNotification({
+                Name = "▶️ 開始",
+                Content = "成功するまで自動実行します",
+                Image = "rbxassetid://4483345998",
+                Time = 2
+            })
+            spawn(function()
+                while autoBarrierNoTPRunning do
+                    local result = executeBarrierBreakNoTP()
+                    if result then
+                        -- 成功したら自動でトグルをOFFにする
+                        if autoBarrierNoTPToggle then
+                            autoBarrierNoTPToggle:Set(false)
+                        end
+                        break
+                    end
+                    wait(1.5)
+                end
+            end)
+        else
+            OrionLib:MakeNotification({
+                Name = "⏸️ 停止",
+                Content = "Auto実行を停止しました",
+                Image = "rbxassetid://4483345998",
+                Time = 2
+            })
+        end
+    end
+})
+
+-- 注意書き
+Tab:AddParagraph("NoTP版の注意", "・ベータ版です\n・通常版より成功率が低い場合があります")
+
+-- 初期化
+OrionLib:Init()

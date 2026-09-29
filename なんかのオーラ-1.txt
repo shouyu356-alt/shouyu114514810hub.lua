@@ -1,0 +1,68 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local plr = Players.LocalPlayer
+
+-- 設定
+local auraRadius = 20            -- 範囲（studs）
+local friendWhitelist = false    -- true にするとフレンドを除外
+local running = false
+
+-- リモート（あれば使う）
+local GrabEvents = ReplicatedStorage:FindFirstChild("GrabEvents")
+local SetNetworkOwner = GrabEvents and GrabEvents:FindFirstChild("SetNetworkOwner")
+
+local function getRoot()
+    local c = plr.Character
+    if not c then return nil end
+    return c:FindFirstChild("HumanoidRootPart") or c:FindFirstChild("Torso") or c.PrimaryPart
+end
+
+local function safeSetNetworkOwner(part)
+    if SetNetworkOwner and part then
+        pcall(function() SetNetworkOwner:FireServer(part, getRoot() and getRoot().CFrame) end)
+    end
+end
+
+local auraConn
+
+local function startKillAura()
+    if running then return end
+    running = true
+    auraConn = RunService.Heartbeat:Connect(function()
+        pcall(function()
+            local root = getRoot()
+            if not root then return end
+            for _, player in pairs(Players:GetPlayers()) do
+                if player ~= plr and player.Character then
+                    local targetTorso = player.Character:FindFirstChild("Torso") or player.Character:FindFirstChild("HumanoidRootPart")
+                    if targetTorso and (targetTorso.Position - root.Position).Magnitude <= auraRadius then
+                        if not (friendWhitelist and plr:IsFriendsWith(player.UserId)) then
+                            -- ネットワーク所有を奪ってから瞬殺（元実装に準拠）
+                            safeSetNetworkOwner(targetTorso)
+                            pcall(function() player.Character:BreakJoints() end)
+                        end
+                    end
+                end
+            end
+        end)
+    end)
+end
+
+local function stopKillAura()
+    if auraConn then
+        auraConn:Disconnect()
+        auraConn = nil
+    end
+    running = false
+end
+
+-- 簡単な API（必要なら外から呼ぶ）
+return {
+    Start = startKillAura,
+    Stop = stopKillAura,
+    IsRunning = function() return running end,
+    SetRadius = function(r) auraRadius = r end,
+    SetFriendWhitelist = function(b) friendWhitelist = b end
+}
